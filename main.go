@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	// "encoding/json"
 	"io"
 	"os"
 	"time"
@@ -12,38 +13,6 @@ import (
 	"github.com/fvbock/endless"
 	"github.com/gin-gonic/gin"
 )
-
-// type Response struct {
-// 	data []struct {
-// 		message []struct {
-// 			id     string `json:"id"`
-// 			author []struct {
-// 				role        string `json:"role"`
-// 				name        string `json:"name"`
-// 				metadata    string `json:"metadata"`
-// 				create_time string `json:"create_time"`
-// 				update_time string `json:"update_time"`
-// 				content     []struct {
-// 					content_type string   `json:"content_type"`
-// 					parts        []string `json:"parts"`
-// 					end_turn     string   `json:"end_turn"`
-// 					weight       string   `json:"weight"`
-// 					metadata     []struct {
-// 						message_type   string `json:"message_type"`
-// 						model_slug     string `json:"model_slug"`
-// 						finish_details []struct {
-// 							ttype string `json:"type"`
-// 							stop  string `json:"stop"`
-// 						}
-// 					}
-// 				}
-// 			}
-// 			recipient string `json:"recipient"`
-// 		}
-// 		conversation_id string `json:"conversation_id"`
-// 		error           string `json:"error"`
-// 	}
-// }
 
 var (
 	jar     = tls_client.NewCookieJar()
@@ -177,15 +146,18 @@ func proxy(c *gin.Context) {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	// defer response.Body.Close()
 
 	var buffer bytes.Buffer
 	_, err = io.Copy(&buffer, response.Body)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
-		return
 	}
-	bodyBytes := buffer.Bytes()
+
+	// defer response.Body.Close()
+	newBodyBytes, err := middleware(buffer.Bytes())
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+	}
 
 	newResp := &http.Response{
 		StatusCode: response.StatusCode,
@@ -193,7 +165,7 @@ func proxy(c *gin.Context) {
 		ProtoMajor: response.ProtoMajor,
 		ProtoMinor: response.ProtoMinor,
 		Header:     response.Header,
-		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
+		Body:       io.NopCloser(bytes.NewReader(newBodyBytes)),
 	}
 
 	defer newResp.Body.Close()
@@ -205,8 +177,6 @@ func proxy(c *gin.Context) {
 	c.Stream(func(w io.Writer) bool {
 		// Write data to client
 		io.Copy(w, newResp.Body)
-		// bufio.NewReader(response.Body).WriteTo(w)
 		return false
 	})
-
 }
