@@ -1,5 +1,5 @@
 # ChatGPT-Proxy-V4
-Cloudflare Bypass for OpenAI based on `puid`
+Cloudflare Bypass for OpenAI based on `puid`, Modified to make it work happy with transitive-bullshit/chatgpt-api.
 
 ## Requirements
 
