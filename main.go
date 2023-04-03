@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"time"
@@ -12,6 +13,38 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// type Response struct {
+// 	data []struct {
+// 		message []struct {
+// 			id     string `json:"id"`
+// 			author []struct {
+// 				role        string `json:"role"`
+// 				name        string `json:"name"`
+// 				metadata    string `json:"metadata"`
+// 				create_time string `json:"create_time"`
+// 				update_time string `json:"update_time"`
+// 				content     []struct {
+// 					content_type string   `json:"content_type"`
+// 					parts        []string `json:"parts"`
+// 					end_turn     string   `json:"end_turn"`
+// 					weight       string   `json:"weight"`
+// 					metadata     []struct {
+// 						message_type   string `json:"message_type"`
+// 						model_slug     string `json:"model_slug"`
+// 						finish_details []struct {
+// 							ttype string `json:"type"`
+// 							stop  string `json:"stop"`
+// 						}
+// 					}
+// 				}
+// 			}
+// 			recipient string `json:"recipient"`
+// 		}
+// 		conversation_id string `json:"conversation_id"`
+// 		error           string `json:"error"`
+// 	}
+// }
+
 var (
 	jar     = tls_client.NewCookieJar()
 	options = []tls_client.HttpClientOption{
@@ -20,12 +53,14 @@ var (
 		tls_client.WithNotFollowRedirects(),
 		tls_client.WithCookieJar(jar), // create cookieJar instance and pass it as argument
 	}
+	http_proxy   = os.Getenv("http_proxy")
 	client, _    = tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
 	access_token = os.Getenv("ACCESS_TOKEN")
 	puid         = os.Getenv("PUID")
 )
 
 func main() {
+	client.SetProxy(http_proxy)
 	if access_token == "" && puid == "" {
 		println("Error: ACCESS_TOKEN and PUID are not set")
 		return
@@ -142,13 +177,35 @@ func proxy(c *gin.Context) {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	defer response.Body.Close()
+	// defer response.Body.Close()
+
+	var buffer bytes.Buffer
+	_, err = io.Copy(&buffer, response.Body)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	bodyBytes := buffer.Bytes()
+
+	newResp := &http.Response{
+		StatusCode: response.StatusCode,
+		Proto:      response.Proto,
+		ProtoMajor: response.ProtoMajor,
+		ProtoMinor: response.ProtoMinor,
+		Header:     response.Header,
+		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
+	}
+
+	defer newResp.Body.Close()
+	response.Body.Close()
+
 	c.Header("Content-Type", response.Header.Get("Content-Type"))
 	// Get status code
-	c.Status(response.StatusCode)
+	c.Status(newResp.StatusCode)
 	c.Stream(func(w io.Writer) bool {
 		// Write data to client
-		io.Copy(w, response.Body)
+		io.Copy(w, newResp.Body)
+		// bufio.NewReader(response.Body).WriteTo(w)
 		return false
 	})
 
