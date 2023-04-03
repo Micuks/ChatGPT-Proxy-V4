@@ -5,6 +5,11 @@ import "bytes"
 func middleware(bodyBytes []byte) ([]byte, error) {
 
 	body_slices := SplitByBlankLine(bodyBytes)
+
+	if len(body_slices) < 3 {
+		return bodyBytes, nil
+	}
+
 	var buffer bytes.Buffer
 	buffer.Write(body_slices[len(body_slices)-3])
 	buffer.Write([]byte("\n\n"))
