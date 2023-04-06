@@ -8,7 +8,7 @@ Cloudflare Bypass for OpenAI based on `puid`, Modified to make it work happy wit
 
 ## Installation 
 
-`go install github.com/acheong08/ChatGPT-Proxy-V4@latest`
+`go install github.com/Micuks/ChatGPT-Proxy-V4@latest`
 
 ## Usage
 
